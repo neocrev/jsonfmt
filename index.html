@@ -134,7 +134,14 @@ function format() {
   if (!raw) { setStatus('Nothing to format', 'error'); return; }
   try {
     const parsed = JSON.parse(raw);
-    const formatted = JSON.stringify(parsed, null, 2);
+    // Sort keys recursively
+    const sortKeys = (o) => {
+      if (o === null || typeof o !== 'object') return o;
+      if (Array.isArray(o)) return o.map(sortKeys);
+      return Object.keys(o).sort().reduce((a, k) => { a[k] = sortKeys(o[k]); return a; }, {});
+    };
+    const sorted = sortKeys(parsed);
+    const formatted = JSON.stringify(sorted, null, 2);
     input.value = formatted;
     const html = parseValue(parsed, 0);
     const lines = formatted.split('\n').length;
