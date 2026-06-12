@@ -76,6 +76,7 @@ const input = document.getElementById('input');
 const output = document.getElementById('output');
 const statusText = document.getElementById('statusText');
 const statsText = document.getElementById('statsText');
+let autoFormatTimer = null;
 
 /* Keyboard: Cmd+Enter or Ctrl+Enter to format */
 input.addEventListener('keydown', e => {
@@ -83,6 +84,12 @@ input.addEventListener('keydown', e => {
     e.preventDefault();
     format();
   }
+});
+
+/* Auto-format on paste */
+input.addEventListener('paste', () => {
+  clearTimeout(autoFormatTimer);
+  autoFormatTimer = setTimeout(format, 300);
 });
 
 function setStatus(msg, type) {
