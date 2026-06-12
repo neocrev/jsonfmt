@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>jsonfmt — JSON Formatter &amp; Validator</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237ecb8b' stroke-width='1.5'><path d='M6 4h12a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z'/><path d='M6 14h12a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f1a;color:#c0caf5;min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding:10px 20px;background:#1a1b2e;border-bottom:1px solid #24253a}
+header h1{font-size:16px;font-weight:700;color:#7ecb8b}
+header .badge{font-size:10px;color:#565f89;background:#0f0f1a;padding:2px 8px;border-radius:4px}
+header .actions{margin-left:auto;display:flex;gap:6px}
+.btn{background:#24253a;border:1px solid #32345a;border-radius:6px;color:#c0caf5;padding:6px 12px;font-size:12px;cursor:pointer;transition:all .12s;font-family:inherit}
+.btn:hover{background:#32345a;border-color:#414868}
+.btn-primary{background:#7ecb8b;color:#0f0f1a;border-color:#7ecb8b;font-weight:600}
+.btn-primary:hover{background:#8fdca0}
+.btn-danger{background:#f7768e;color:#0f0f1a;border-color:#f7768e;font-weight:600}
+.btn-danger:hover{background:#f99}
+.container{flex:1;display:flex;flex-direction:column;padding:12px 20px;max-width:1000px;width:100%;margin:0 auto}
+textarea{flex:1;min-height:300px;background:#0f0f1a;border:1px solid #24253a;border-radius:8px;color:#c0caf5;padding:14px;font-family:'SF Mono','Fira Code','Cascadia Code',monospace;font-size:13px;line-height:1.6;resize:vertical;tab-size:2}
+textarea:focus{outline:none;border-color:#7ecb8b}
+textarea::placeholder{color:#414868}
+.status-bar{display:flex;align-items:center;gap:12px;padding:8px 0;font-size:12px;color:#565f89}
+.status-bar .error{color:#f7768e}
+.status-bar .success{color:#7ecb8b}
+.output-wrap{flex:1;min-height:200px;background:#0f0f1a;border:1px solid #24253a;border-radius:8px;overflow:auto;position:relative}
+.output-wrap pre{padding:14px;font-size:13px;line-height:1.6;font-family:'SF Mono','Fira Code',monospace;white-space:pre;tab-size:2;margin:0}
+.output-wrap .placeholder{display:flex;align-items:center;justify-content:center;height:100%;min-height:100px;color:#414868;font-size:13px;font-family:inherit}
+.output-wrap .line{display:flex}
+.output-wrap .ln{color:#414868;text-align:right;padding-right:14px;user-select:none;min-width:32px}
+.output-wrap .val{white-space:pre;flex:1}
+.error-line{background:rgba(247,118,142,0.08)}
+.error-line .val{color:#f7768e}
+.key{color:#7aa2f7}
+.string{color:#9ece6a}
+.number{color:#ff9e64}
+.boolean{color:#bb9af7}
+.null{color:#565f89}
+.bracket{color:#c0caf5}
+.comma{color:#565f89}
+.collapse-btn{background:none;border:none;color:#565f89;cursor:pointer;padding:0 4px;font-size:11px;font-family:monospace;border-radius:3px}
+.collapse-btn:hover{color:#c0caf5;background:rgba(255,255,255,.06)}
+@media(max-width:600px){.container{padding:8px 12px}textarea{min-height:200px}.output-wrap{min-height:150px}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>jsonfmt</h1>
+  <span class="badge">JSON Formatter &amp; Validator</span>
+  <div class="actions">
+    <button class="btn" onclick="loadSample()">Sample</button>
+    <button class="btn" onclick="clearAll()">Clear</button>
+    <button class="btn btn-primary" onclick="format()">Format</button>
+    <button class="btn btn-danger" onclick="minify()">Minify</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="status-bar" id="statusBar">
+    <span id="statusText">Paste JSON and click Format, or try a Sample.</span>
+    <span id="statsText" style="margin-left:auto"></span>
+  </div>
+  <textarea id="input" placeholder='{"key": "value", "arr": [1, 2, 3]}' spellcheck="false"></textarea>
+  <div style="height:8px"></div>
+  <div class="output-wrap" id="output">
+    <div class="placeholder">Output will appear here</div>
+  </div>
+</div>
+
+<script>
+const input = document.getElementById('input');
+const output = document.getElementById('output');
+const statusText = document.getElementById('statusText');
+const statsText = document.getElementById('statsText');
+
+/* Keyboard: Cmd+Enter or Ctrl+Enter to format */
+input.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    format();
+  }
+});
+
+function setStatus(msg, type) {
+  statusText.textContent = msg;
+  statusText.className = type || '';
+}
+
+function parseValue(v, depth) {
+  if (v === null) return '<span class="null">null</span>';
+  if (typeof v === 'boolean') return `<span class="boolean">${v}</span>`;
+  if (typeof v === 'number') return `<span class="number">${v}</span>`;
+  if (typeof v === 'string') return `<span class="string">${JSON.stringify(v)}</span>`;
+  if (Array.isArray(v)) return formatArray(v, depth);
+  if (typeof v === 'object') return formatObject(v, depth);
+  return esc(String(v));
+}
+
+function formatObject(obj, depth) {
+  const keys = Object.keys(obj);
+  if (!keys.length) return '{<span style="color:#565f89">}</span>';
+  const indent = '  '.repeat(depth + 1);
+  const closing = '  '.repeat(depth);
+  const items = keys.map(k => {
+    const val = parseValue(obj[k], depth + 1);
+    return `\n${indent}<span class="key">${esc(JSON.stringify(k))}</span>: ${val}`;
+  });
+  return `{${items.join(',')}\n${closing}<span class="bracket">}</span>`;
+}
+
+function formatArray(arr, depth) {
+  if (!arr.length) return '[<span style="color:#565f89">]</span>';
+  const indent = '  '.repeat(depth + 1);
+  const closing = '  '.repeat(depth);
+  const items = arr.map(item => `\n${indent}${parseValue(item, depth + 1)}`);
+  return `[${items.join(',')}\n${closing}<span class="bracket">]</span>`;
+}
+
+function esc(s) { return s.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function format() {
+  const raw = input.value.trim();
+  if (!raw) { setStatus('Nothing to format', 'error'); return; }
+  try {
+    const parsed = JSON.parse(raw);
+    const formatted = JSON.stringify(parsed, null, 2);
+    input.value = formatted;
+    const html = parseValue(parsed, 0);
+    const lines = formatted.split('\n').length;
+    output.innerHTML = `<pre>${html}</pre>`;
+    const bytes = new Blob([formatted]).size;
+    statsText.textContent = `${lines} lines, ${bytes} bytes`;
+    setStatus('Valid JSON', 'success');
+  } catch(e) {
+    const msg = e.message;
+    const m = msg.match(/position\s+(\d+)/);
+    let posInfo = '';
+    if (m) {
+      const pos = parseInt(m[1]);
+      const before = raw.substring(0, pos);
+      const line = (before.match(/\n/g) || '').length + 1;
+      const col = pos - before.lastIndexOf('\n');
+      posInfo = ` (line ${line}, col ${col})`;
+      /* Show error with context */
+      const ctxStart = Math.max(0, pos - 40);
+      const ctxEnd = Math.min(raw.length, pos + 40);
+      let ctx = esc(raw.substring(ctxStart, ctxEnd));
+      if (ctxStart > 0) ctx = '...' + ctx;
+      if (ctxEnd < raw.length) ctx = ctx + '...';
+      const pointer = ' '.repeat(Math.min(43, pos - ctxStart + (ctxStart > 0 ? 3 : 0))) + '^';
+      output.innerHTML = `<pre><span style="color:#f7768e">${esc(msg)}</span>\n<span style="color:#414868">${ctx}\n${pointer}</span></pre>`;
+    } else {
+      output.innerHTML = `<pre><span style="color:#f7768e">${esc(msg)}</span></pre>`;
+    }
+    statsText.textContent = '';
+    setStatus(`Invalid JSON${posInfo}`, 'error');
+  }
+}
+
+function minify() {
+  const raw = input.value.trim();
+  if (!raw) { setStatus('Nothing to minify', 'error'); return; }
+  try {
+    const parsed = JSON.parse(raw);
+    const minified = JSON.stringify(parsed);
+    input.value = minified;
+    output.innerHTML = `<pre><span style="color:#565f89">${esc(minified)}</span></pre>`;
+    const bytes = new Blob([minified]).size;
+    statsText.textContent = `${bytes} bytes`;
+    setStatus('Minified', 'success');
+  } catch(e) {
+    setStatus(e.message, 'error');
+  }
+}
+
+function loadSample() {
+  input.value = JSON.stringify({
+    "name": "jsonfmt",
+    "version": "0.1.0",
+    "description": "JSON Formatter & Validator",
+    "features": ["format", "minify", "validate", "syntax highlighting"],
+    "author": { "name": "neocrev", "url": "https://github.com/neocrev" },
+    "stars": 42,
+    "license": "MIT",
+    "active": true,
+    "tags": null
+  }, null, 2);
+  format();
+}
+
+function clearAll() {
+  input.value = '';
+  output.innerHTML = '<div class="placeholder">Output will appear here</div>';
+  statsText.textContent = '';
+  setStatus('Cleared');
+}
+</script>
+</body>
+</html>
