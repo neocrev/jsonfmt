@@ -55,6 +55,7 @@ textarea::placeholder{color:#414868}
     <button class="btn" onclick="clearAll()">Clear</button>
     <button class="btn btn-primary" onclick="format()">Format</button>
     <button class="btn btn-danger" onclick="minify()">Minify</button>
+    <button class="btn" onclick="copyOutput()">Copy</button>
   </div>
 </header>
 
@@ -189,6 +190,16 @@ function loadSample() {
     "tags": null
   }, null, 2);
   format();
+}
+
+function copyOutput() {
+  const text = input.value;
+  if (!text.trim()) { setStatus('Nothing to copy', 'error'); return; }
+  navigator.clipboard.writeText(text).then(() => {
+    setStatus('Copied to clipboard', 'success');
+  }).catch(() => {
+    setStatus('Failed to copy', 'error');
+  });
 }
 
 function clearAll() {
